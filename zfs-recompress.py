@@ -2,7 +2,6 @@
 
 import argparse
 import glob
-import humanize
 import os
 import pathlib
 import queue
@@ -40,7 +39,13 @@ def get_free_space(filename: str) -> int:
 
 
 def format_size(size: int) -> str:
-    return humanize.naturalsize(size, binary=True, format="%.2f")
+    UNITS = ["B", "KiB", "MiB", "GiB", "TiB"]
+    for unit in UNITS:
+        if size >= 1024:
+            size /= 1024
+        else:
+            return f"{size:.2f} {unit}"
+    return f"{size:.2f} PiB"
 
 
 def gen_uuid() -> str:
@@ -94,16 +99,22 @@ def process_file(filename: str) -> None:
         force_rm(workfilename)
 
 
+def handle_exception(e: Exception):
+    import traceback
+    traceback.print_exc()
+
+
 def worker_thread(qin: queue.SimpleQueue, qout: queue.SimpleQueue):
     while True:
         filename = qin.get()
         if filename is None:
             return
         size = get_file_size(filename)
-        if should_skip_file(filename):
-            continue
         qout.put((filename, size))
-        process_file(filename)
+        try:
+            process_file(filename)
+        except Exception as e:
+            handle_exception(e)
 
 
 def spawn_worker(qin: queue.SimpleQueue, qout: queue.SimpleQueue) -> threading.Thread:
@@ -122,9 +133,9 @@ def display_thread(qin: queue.SimpleQueue):
         total_size += size
         if count % 10 == 0 or size >= 20 << 20:
             # print every 10th file and anything larger than 20 MiB
-            display_name = truncate_filename(filename)
+            display_name = truncate_filename(filename, 24)
             clear_line()
-            print(f"Processed {count}: {display_name} ({format_size(size)} / {format_size(total_size)})", end="", flush=True)
+            print(f"Processed {count}: {display_name:<24} ({format_size(size):>10} / {format_size(total_size):>10})", end="", flush=True)
     clear_line()
     print(f"Processed {count} files, {format_size(total_size)} total")
 
@@ -134,17 +145,23 @@ def get_files(path):
 
 
 def main() -> None:
+    NUM_THREADS = 4
     cwd = os.getcwd()
     qin = queue.SimpleQueue()
     qout = queue.SimpleQueue()
     t = threading.Thread(target=display_thread, args=(qout,), daemon=True)
     t.start()
-    for i in range(4):
-        spawn_worker(qin, qout)
+    workers = []
+    for i in range(NUM_THREADS):
+        workers.append(spawn_worker(qin, qout))
     for filename in get_files(cwd):
+        if should_skip_file(filename):
+            continue
         qin.put(filename)
-    while not qin.empty():
-        time.sleep(1)
+    for i in range(NUM_THREADS):
+        qin.put(None)
+    for w in workers:
+        w.join()
     qout.put((None, 0))
     t.join()
 
