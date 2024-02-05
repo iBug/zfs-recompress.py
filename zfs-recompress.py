@@ -1,13 +1,10 @@
 #!/usr/bin/python3
 
-import argparse
-import glob
 import os
 import pathlib
 import queue
 import shutil
 import threading
-import time
 import uuid
 
 
