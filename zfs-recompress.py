@@ -31,13 +31,13 @@ def get_file_size(filename: str) -> int:
 
 
 def get_free_space(filename: str) -> int:
-    total, used, free = shutil.disk_usage(filename)
+    _, _, free = shutil.disk_usage(filename)
     return free
 
 
 def format_size(size: int) -> str:
-    UNITS = ["B", "KiB", "MiB", "GiB", "TiB"]
-    for unit in UNITS:
+    units = ["B", "KiB", "MiB", "GiB", "TiB"]
+    for unit in units:
         if size >= 1024:
             size /= 1024
         else:
@@ -58,8 +58,8 @@ def force_rm(filename: str) -> None:
 
 def cp_preserved(src: str, dst: str) -> None:
     shutil.copy2(src, dst)
-    st = os.stat(src)
-    os.chown(dst, st.st_uid, st.st_gid)
+    stat = os.stat(src)
+    os.chown(dst, stat.st_uid, stat.st_gid)
 
 
 def force_mv(src: str, dst: str) -> None:
@@ -104,7 +104,7 @@ def handle_exception(e: Exception):
 def worker_thread(qin: queue.SimpleQueue, qout: queue.SimpleQueue):
     while True:
         filename = qin.get()
-        if filename is None:
+        if not filename:
             return
         size = get_file_size(filename)
         qout.put((filename, size))
@@ -136,7 +136,8 @@ def display_thread(qin: queue.SimpleQueue):
     clear_line()
     print(f"Processed {count} files, {format_size(total_size)} total")
 
-def get_files(path):
+
+def get_files(path: str):
     for p in pathlib.Path(path).glob("**/*"):
         yield str(p)
 
@@ -149,7 +150,7 @@ def main() -> None:
     t = threading.Thread(target=display_thread, args=(qout,), daemon=True)
     t.start()
     workers = []
-    for i in range(NUM_THREADS):
+    for _ in range(NUM_THREADS):
         workers.append(spawn_worker(qin, qout))
     for filename in get_files(cwd):
         if should_skip_file(filename):
