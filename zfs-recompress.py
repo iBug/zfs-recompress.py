@@ -84,8 +84,8 @@ def process_file(filename: str) -> None:
     if size > free:
         raise OSError(f"Not enough free space to process file: {filename}")
 
+    workfilename = filename + WORKING_SUFFIX
     try:
-        workfilename = filename + WORKING_SUFFIX
         st_1 = os.stat(filename)
         cp_preserved(filename, workfilename)
         st_2 = os.stat(filename)
