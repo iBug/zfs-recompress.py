@@ -82,7 +82,7 @@ def process_file(filename: str) -> None:
     size = get_file_size(filename)
     free = get_free_space(filename)
     if size > free:
-        raise OSError("Not enough free space to process file: {}".format(filename))
+        raise OSError(f"Not enough free space to process file: {filename}")
 
     try:
         workfilename = filename + WORKING_SUFFIX
@@ -90,7 +90,7 @@ def process_file(filename: str) -> None:
         cp_preserved(filename, workfilename)
         st_2 = os.stat(filename)
         if st_1.st_ino != st_2.st_ino or st_1.st_mtime != st_2.st_mtime:
-            raise OSError("File changed during copy: {}".format(filename))
+            raise OSError(f"File changed during copy: {filename}")
         force_mv(workfilename, filename)
     finally:
         force_rm(workfilename)
