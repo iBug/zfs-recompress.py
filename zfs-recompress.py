@@ -35,7 +35,7 @@ def get_free_space(filename: str) -> int:
     return free
 
 
-def format_size(size: int) -> str:
+def format_size(size: float) -> str:
     units = ["B", "KiB", "MiB", "GiB", "TiB"]
     for unit in units:
         if size >= 1024:
