@@ -96,11 +96,6 @@ def process_file(filename: str) -> None:
         force_rm(workfilename)
 
 
-def handle_exception(e: Exception):
-    import traceback
-    traceback.print_exc()
-
-
 def worker_thread(qin: queue.SimpleQueue, qout: queue.SimpleQueue):
     while True:
         filename = qin.get()
@@ -111,7 +106,8 @@ def worker_thread(qin: queue.SimpleQueue, qout: queue.SimpleQueue):
         try:
             process_file(filename)
         except Exception as e:
-            handle_exception(e)
+            import traceback
+            traceback.print_exc()
 
 
 def spawn_worker(qin: queue.SimpleQueue, qout: queue.SimpleQueue) -> threading.Thread:
