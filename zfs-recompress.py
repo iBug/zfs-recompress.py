@@ -161,7 +161,12 @@ def parse_args():
         default=8,
         help="number of threads to use. Default is 8 if unspecified",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.threads <= 0:
+        parser.error("Number of threads must be a positive integer.")
+    if args.folder and not os.path.isdir(args.folder):
+        parser.error(f"Specified folder does not exist: {args.folder}")
+    return args
 
 
 def main() -> None:
