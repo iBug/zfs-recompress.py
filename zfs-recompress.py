@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import argparse
 import os
 import pathlib
 import queue
@@ -128,7 +129,11 @@ def display_thread(qin: queue.SimpleQueue):
             # print every 10th file and anything larger than 20 MiB
             display_name = truncate_filename(filename, 24)
             clear_line()
-            print(f"Processed {count}: {display_name:<24} ({format_size(size):>10} / {format_size(total_size):>10})", end="", flush=True)
+            print(
+                f"Processed {count}: {display_name:<24} ({format_size(size):>10} / {format_size(total_size):>10})",
+                end="",
+                flush=True,
+            )
     clear_line()
     print(f"Processed {count} files, {format_size(total_size)} total")
 
@@ -138,21 +143,43 @@ def get_files(path: str):
         yield str(p)
 
 
+def parse_args():
+    # cli arguments
+    parser = argparse.ArgumentParser(
+        description="Rewrite of [gary17/zfs-recompress](https://github.com/gary17/zfs-recompress) in Python for better performance"
+    )
+    parser.add_argument(
+        "-f",
+        "--folder",
+        default="",
+        help="process the specified FOLDER instead of the current working directory",
+    )
+    parser.add_argument(
+        "-t",
+        "--threads",
+        type=int,
+        default=8,
+        help="number of threads to use. Default is 8 if unspecified",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
-    NUM_THREADS = 4
-    cwd = os.getcwd()
+    args = parse_args()
+    num_threads = args.threads
+    cwd = os.getcwd() if args.folder == "" else args.folder
     qin = queue.SimpleQueue()
     qout = queue.SimpleQueue()
     t = threading.Thread(target=display_thread, args=(qout,), daemon=True)
     t.start()
     workers = []
-    for _ in range(NUM_THREADS):
+    for i in range(num_threads):
         workers.append(spawn_worker(qin, qout))
     for filename in get_files(cwd):
         if should_skip_file(filename):
             continue
         qin.put(filename)
-    for i in range(NUM_THREADS):
+    for i in range(num_threads):
         qin.put(None)
     for w in workers:
         w.join()
