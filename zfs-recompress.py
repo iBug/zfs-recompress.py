@@ -146,7 +146,7 @@ def get_files(path: str):
 def parse_args():
     # cli arguments
     parser = argparse.ArgumentParser(
-        description="Rewrite of [gary17/zfs-recompress](https://github.com/gary17/zfs-recompress) in Python for better performance"
+        description="Rewrite of <https://github.com/gary17/zfs-recompress> in Python for better performance"
     )
     parser.add_argument(
         "-f",
@@ -172,7 +172,7 @@ def parse_args():
 def main() -> None:
     args = parse_args()
     num_threads = args.threads
-    cwd = os.getcwd() if args.folder == "" else args.folder
+    cwd = args.folder or os.getcwd()
     qin = queue.SimpleQueue()
     qout = queue.SimpleQueue()
     t = threading.Thread(target=display_thread, args=(qout,), daemon=True)
