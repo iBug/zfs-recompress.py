@@ -1,13 +1,11 @@
 #!/usr/bin/python3
 
 import argparse
-import glob
 import os
 import pathlib
 import queue
 import shutil
 import threading
-import time
 import uuid
 
 
@@ -34,13 +32,13 @@ def get_file_size(filename: str) -> int:
 
 
 def get_free_space(filename: str) -> int:
-    total, used, free = shutil.disk_usage(filename)
+    _, _, free = shutil.disk_usage(filename)
     return free
 
 
-def format_size(size: int) -> str:
-    UNITS = ["B", "KiB", "MiB", "GiB", "TiB"]
-    for unit in UNITS:
+def format_size(size: float) -> str:
+    units = ["B", "KiB", "MiB", "GiB", "TiB"]
+    for unit in units:
         if size >= 1024:
             size /= 1024
         else:
@@ -61,8 +59,8 @@ def force_rm(filename: str) -> None:
 
 def cp_preserved(src: str, dst: str) -> None:
     shutil.copy2(src, dst)
-    st = os.stat(src)
-    os.chown(dst, st.st_uid, st.st_gid)
+    stat = os.stat(src)
+    os.chown(dst, stat.st_uid, stat.st_gid)
 
 
 def force_mv(src: str, dst: str) -> None:
@@ -85,36 +83,32 @@ def process_file(filename: str) -> None:
     size = get_file_size(filename)
     free = get_free_space(filename)
     if size > free:
-        raise OSError("Not enough free space to process file: {}".format(filename))
+        raise OSError(f"Not enough free space to process file: {filename}")
 
+    workfilename = filename + WORKING_SUFFIX
     try:
-        workfilename = filename + WORKING_SUFFIX
         st_1 = os.stat(filename)
         cp_preserved(filename, workfilename)
         st_2 = os.stat(filename)
         if st_1.st_ino != st_2.st_ino or st_1.st_mtime != st_2.st_mtime:
-            raise OSError("File changed during copy: {}".format(filename))
+            raise OSError(f"File changed during copy: {filename}")
         force_mv(workfilename, filename)
     finally:
         force_rm(workfilename)
 
 
-def handle_exception(e: Exception):
-    import traceback
-    traceback.print_exc()
-
-
 def worker_thread(qin: queue.SimpleQueue, qout: queue.SimpleQueue):
     while True:
         filename = qin.get()
-        if filename is None:
+        if not filename:
             return
         size = get_file_size(filename)
         qout.put((filename, size))
         try:
             process_file(filename)
         except Exception as e:
-            handle_exception(e)
+            import traceback
+            traceback.print_exc()
 
 
 def spawn_worker(qin: queue.SimpleQueue, qout: queue.SimpleQueue) -> threading.Thread:
@@ -135,30 +129,63 @@ def display_thread(qin: queue.SimpleQueue):
             # print every 10th file and anything larger than 20 MiB
             display_name = truncate_filename(filename, 24)
             clear_line()
-            print(f"Processed {count}: {display_name:<24} ({format_size(size):>10} / {format_size(total_size):>10})", end="", flush=True)
+            print(
+                f"Processed {count}: {display_name:<24} ({format_size(size):>10} / {format_size(total_size):>10})",
+                end="",
+                flush=True,
+            )
     clear_line()
     print(f"Processed {count} files, {format_size(total_size)} total")
 
-def get_files(path):
+
+def get_files(path: str):
     for p in pathlib.Path(path).glob("**/*"):
         yield str(p)
 
 
+def parse_args():
+    # cli arguments
+    parser = argparse.ArgumentParser(
+        description="Rewrite of <https://github.com/gary17/zfs-recompress> in Python for better performance.",
+        epilog="Written by iBug <https://github.com/iBug/zfs-recompress.py>",
+    )
+    parser.add_argument(
+        "-f",
+        "--folder",
+        type=str,
+        help="process the specified FOLDER instead of the current working directory",
+    )
+    parser.add_argument(
+        "-t",
+        "--threads",
+        type=int,
+        default=8,
+        help="number of threads to use. Defaults to 8",
+    )
+    args = parser.parse_args()
+    if args.threads <= 0:
+        parser.error("Number of threads must be a positive integer.")
+    if args.folder and not os.path.isdir(args.folder):
+        parser.error(f"Specified folder does not exist: {args.folder}")
+    return args
+
+
 def main() -> None:
-    NUM_THREADS = 4
-    cwd = os.getcwd()
+    args = parse_args()
+    num_threads = args.threads
+    cwd = args.folder or os.getcwd()
     qin = queue.SimpleQueue()
     qout = queue.SimpleQueue()
     t = threading.Thread(target=display_thread, args=(qout,), daemon=True)
     t.start()
     workers = []
-    for i in range(NUM_THREADS):
+    for i in range(num_threads):
         workers.append(spawn_worker(qin, qout))
     for filename in get_files(cwd):
         if should_skip_file(filename):
             continue
         qin.put(filename)
-    for i in range(NUM_THREADS):
+    for i in range(num_threads):
         qin.put(None)
     for w in workers:
         w.join()
