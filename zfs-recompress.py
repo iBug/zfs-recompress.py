@@ -146,12 +146,13 @@ def get_files(path: str):
 def parse_args():
     # cli arguments
     parser = argparse.ArgumentParser(
-        description="Rewrite of <https://github.com/gary17/zfs-recompress> in Python for better performance"
+        description="Rewrite of <https://github.com/gary17/zfs-recompress> in Python for better performance.",
+        epilog="Written by iBug <https://github.com/iBug/zfs-recompress.py>",
     )
     parser.add_argument(
         "-f",
         "--folder",
-        default="",
+        type=str,
         help="process the specified FOLDER instead of the current working directory",
     )
     parser.add_argument(
@@ -159,7 +160,7 @@ def parse_args():
         "--threads",
         type=int,
         default=8,
-        help="number of threads to use. Default is 8 if unspecified",
+        help="number of threads to use. Defaults to 8",
     )
     args = parser.parse_args()
     if args.threads <= 0:
